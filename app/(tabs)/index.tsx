@@ -1,70 +1,195 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, {useState, useRef} from "react";
+import {View, Alert, FlatList} from "react-native";
+import {StyleSheet} from "react-native";
+import {useSelector, useDispatch} from "react-redux";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import {
+  addTaskAction,
+  toggleDoneAction,
+  editTaskAction,
+  removeTaskAction
+} from "@/store/taskSlice";
 
-export default function HomeScreen() {
+import {AddTaskModal} from "@/components/AddTaskModal";
+import {Header} from "@/components/Header";
+import {AddItemButton} from "@/components/AddItemButton";
+import {TasksList} from "@/components/TaskList";
+import {EditTaskModal} from "@/components/EditTaskModal";
+
+import {useDropdown} from "@/hooks/useDropdown";
+import {colors} from "@/theme";
+import {AppDispatch, RootState} from "@/store";
+import {PriorityType, Task} from "@/types";
+import {getRandomInt} from "@/utils";
+
+const dropdownItems = [
+  {label: "Critical", value: PriorityType.Critical},
+  {label: "High", value: PriorityType.High},
+  {label: "Medium", value: PriorityType.Medium},
+  {label: "Low", value: PriorityType.Low}
+];
+
+export default function TodoScreen() {
+  const dispatch = useDispatch<AppDispatch>();
+  const tasks = useSelector((state: RootState) => state.tasks.items);
+
+  const [task, setTask] = useState({
+    id: 0,
+    title: "",
+    description: "",
+    priority: "",
+    done: false
+  });
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const flatListRef = useRef<FlatList<Task> | null>(null);
+
+  const {
+    dropdownOpen,
+    setIsDropdownOpen,
+    dropdownValue,
+    setDropdownValue,
+    items,
+    setItems
+  } = useDropdown(dropdownItems);
+
+  const triggerEditTask = (task: Task) => {
+    setTaskToEdit(task);
+    setEditModalVisible(true);
+  };
+
+  const handleChangeTitle = (value: string) => setTask({...task, title: value});
+  const handleChangeDesc = (value: string) =>
+    setTask({...task, description: value});
+
+  const handleCancelAdd = () => {
+    setAddModalVisible(false);
+    setTask({
+      title: "",
+      description: "",
+      priority: "",
+      done: false,
+      id: getRandomInt(1, 1000000)
+    });
+    setDropdownValue(null);
+  };
+  const handleCancelEdit = () => {
+    setEditModalVisible(false);
+    setTaskToEdit(null);
+  };
+
+  const handleAddTask = () => {
+    if (
+      task.title === "" ||
+      task.description === "" ||
+      dropdownValue === null
+    ) {
+      Alert.alert(
+        "Please fill all fields",
+        "Title, description and Priority are required to create a task",
+        [{text: "OK", style: "destructive"}]
+      );
+      return;
+    }
+    const id = getRandomInt(1, 1000000);
+    dispatch(
+      addTaskAction({
+        ...task,
+        priority: dropdownValue,
+        id
+      })
+    );
+
+    setAddModalVisible(false);
+    setTask({
+      title: "",
+      description: "",
+      priority: "",
+      done: false,
+      id
+    });
+    setDropdownValue(null);
+
+    if (tasks.length > 1) flatListRef.current?.scrollToEnd();
+  };
+
+  const handleCheck = (id: number) => {
+    dispatch(toggleDoneAction(id));
+  };
+  const handleEdit = (id: number, data: Task) => {
+    dispatch(editTaskAction({id, data}));
+    setEditModalVisible(false);
+  };
+  
+  const handleDelete = (id: number) => {
+    console.log(id,"delete number")
+    Alert.alert(
+      "Delete task",
+      "Are you sure you want to delete this task?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => deleteTask(id) }
+      ]
+    );
+  };
+
+  const deleteTask = (id: number) => {
+    dispatch(removeTaskAction(id));
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <>
+      <View style={styles.container}>
+        <Header
+          title="Todos"
+          subtitle="Things that you may require to do"
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+
+        <TasksList
+          tasks={tasks}
+          flatListRef={flatListRef}
+          triggerEditTask={triggerEditTask}
+          handleCheck={handleCheck}
+          handleDelete={handleDelete}
+        />
+
+        <AddItemButton
+          modalVisible={addModalVisible}
+          setModalVisible={setAddModalVisible}
+        />
+
+        <AddTaskModal
+          open={addModalVisible}
+          handleChangeTitle={handleChangeTitle}
+          handleChangeDesc={handleChangeDesc}
+          task={task}
+          handleCancel={handleCancelAdd}
+          handleAddTask={handleAddTask}
+          dropdownOpen={dropdownOpen}
+          setIsDropdownOpen={setIsDropdownOpen}
+          dropdownValue={dropdownValue}
+          setDropdownValue={setDropdownValue}
+          items={items}
+          setItems={setItems}
+        />
+
+        <EditTaskModal
+          open={editModalVisible}
+          task={taskToEdit}
+          handleCancel={handleCancelEdit}
+          handleEdit={handleEdit}
+        />
+      </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  container: {
+    flex: 1,
+    backgroundColor: colors.backgroundLight,
+    paddingTop: 48,
+    paddingHorizontal: 24
+  }
 });
