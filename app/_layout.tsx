@@ -7,6 +7,7 @@ import {Provider} from "react-redux";
 
 import {useColorScheme} from "@/hooks/useColorScheme";
 import {store} from "@/store";
+import { DatabaseProvider } from "@/context/Database";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -38,10 +39,12 @@ export default function RootLayout() {
 
   return (
     <Provider store={store}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{headerShown: false}} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
+      <DatabaseProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{headerShown: false}} />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </DatabaseProvider>
     </Provider>
   );
 }

@@ -21,6 +21,7 @@ import {colors} from "@/theme";
 import {AppDispatch, RootState} from "@/store";
 import {PriorityType, Task} from "@/types";
 import {getRandomInt} from "@/utils";
+import { useDatabase } from "@/context/Database";
 
 const dropdownItems = [
   {label: "Critical", value: PriorityType.Critical},
@@ -32,6 +33,7 @@ const dropdownItems = [
 export default function TodoScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const tasks = useSelector((state: RootState) => state.tasks.items);
+  const {db} = useDatabase();
 
   const [task, setTask] = useState({
     id: 0,
@@ -79,7 +81,7 @@ export default function TodoScreen() {
     setTaskToEdit(null);
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (
       task.title === "" ||
       task.description === "" ||
@@ -92,14 +94,29 @@ export default function TodoScreen() {
       );
       return;
     }
+    
+    try {
+      await db?.withTransactionAsync(async () => {
+        const result = await db.runAsync('INSERT INTO tasks (title, description, priority, done) VALUES (?, ?, ?, ?)',[task.title, task.description, task.priority, task.done ? 1 : 0]);
+        dispatch(
+          addTaskAction({
+            ...task,
+            priority: dropdownValue,
+            id: result.lastInsertRowId
+          })
+        );
+      });
+    } catch (error) {
+      console.log(error,"error")
+    }
     const id = getRandomInt(1, 1000000);
-    dispatch(
-      addTaskAction({
-        ...task,
-        priority: dropdownValue,
-        id
-      })
-    );
+    // dispatch(
+    //   addTaskAction({
+    //     ...task,
+    //     priority: dropdownValue,
+    //     id
+    //   })
+    // );
 
     setAddModalVisible(false);
     setTask({
@@ -114,16 +131,31 @@ export default function TodoScreen() {
     if (tasks.length > 1) flatListRef.current?.scrollToEnd();
   };
 
-  const handleCheck = (id: number) => {
-    dispatch(toggleDoneAction(id));
+  const handleCheck = async (id: number) => {
+    try {
+      await db?.withTransactionAsync(async () => {
+        await db.runAsync('UPDATE tasks SET done = CASE WHEN done = 1 THEN 0 ELSE 1 END WHERE id = ?',[id]);
+      });
+      dispatch(toggleDoneAction(id));
+    } catch (error) {
+      console.log(error,"error")
+    }
+    // dispatch(toggleDoneAction(id));
   };
-  const handleEdit = (id: number, data: Task) => {
-    dispatch(editTaskAction({id, data}));
+  const handleEdit =  async (id: number, data: Task) => {
+    try {
+      await db?.withTransactionAsync(async () => {
+        await db.runAsync('UPDATE tasks SET title = ?, description = ?, priority = ?, done = ? WHERE id = ?',[data.title,data.description,data.priority,data.done ? 1 : 0]);
+      });
+      dispatch(editTaskAction({id, data}));
+    } catch (error) {
+      console.log(error,"error")
+    }
+    // dispatch(editTaskAction({id, data}));
     setEditModalVisible(false);
   };
   
   const handleDelete = (id: number) => {
-    console.log(id,"delete number")
     Alert.alert(
       "Delete task",
       "Are you sure you want to delete this task?",
@@ -134,8 +166,16 @@ export default function TodoScreen() {
     );
   };
 
-  const deleteTask = (id: number) => {
-    dispatch(removeTaskAction(id));
+  const deleteTask = async (id: number) => {
+    try {
+      await db?.withTransactionAsync(async () => {
+        await db.runAsync('DELETE FROM tasks WHERE id = ?',[id]);
+      });
+      dispatch(removeTaskAction(id));
+    } catch (error) {
+      console.log(error,"error")
+    }
+    // dispatch(removeTaskAction(id));
   };
 
   return (
